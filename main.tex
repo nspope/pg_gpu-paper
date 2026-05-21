@@ -54,6 +54,7 @@
 \newcommand{\pixi}{\texttt{pixi}\xspace}
 \newcommand{\cublas}{\texttt{cuBLAS}\xspace}
 \newcommand{\lostruct}{\texttt{lostruct}\xspace}
+\newcommand{\kvikio}{\texttt{kvikio}\xspace}
 
 % for hyperlinks
 \hypersetup{
@@ -587,6 +588,14 @@ routes large workloads through a
 chunked variant of the same kernels which is 
 essential to handle large-scale data without user
 tuning. 
+A crucial aspect of our chunking strategy is to leverage
+\kvikio \citep{kvikio2021} for seemless transfer from the \vcz store
+directly to GPU memory, which mitigates much of the overhead 
+due to host-to-device data transfer. %NSP 21-May-26: also decompression, maybe? Andy weigh in here please
+The potential of \kvikio's GPU-native \zarr backend for accelerating 
+the processing of population genetic data was pointed out by
+\citet{czech2024vcz}, and has proven essential for the efficiency of the
+streaming-to-GPU strategy implemented in \pggpu.
 % NSP 21-May-26: ^^^ this seems like a good place to mention any insights from the new "streaming" structure?
 Third, processing windows in tiles---so that working memory
 scales with the tile size ($O(\text{tile\_size}\times n_{\text{hap}}^2)$)
