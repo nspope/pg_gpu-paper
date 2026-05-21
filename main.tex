@@ -155,7 +155,7 @@ the design and implementation, the full statistic catalog with primary
 references, an extended description of the API and features, numerical
 accuracy comparisons against \scikitallel, \plinktwo, and \moments, a
 worked \moments-LD demographic-inference example, and supplementary
-figures (including the per-population moments LD-parsing breakdown) are
+figures (including a breakdown of the speed and accuracy of LD statistics parsing for moments) are
 available at the journal website.
 \end{abstract}
 
@@ -198,7 +198,7 @@ in \vcf or \plink formats). However, the tree sequences need to be first inferre
 from the genotype data itself, a process which may not be feasible for some datasets,
 for example due to the lack of phased haplotypes.
 
-Computation of population genetic statistics across all these earlier tools is 
+Computation of population genetic statistics across all of these earlier tools is 
 performed on the CPU, and statistics are typically computed sequentially along 
 genomic windows. For large-scale projects involving windowed genome scans of tens 
 of statistics across many populations, wall-clock times of hours to days are common. 
@@ -270,7 +270,7 @@ that can be decomposed into independent per-site or per-window calculations,
 making them natural candidates for GPU acceleration. While GPUs have been
 applied to specific problems in population genetics---notably forward-in-time
 simulation \citep{gofish2017} and demographic inference via diffusion
-approximations \citep{gutenkunst2021} or gradient-based optimization \citep{Terhorst2025} 
+approximations \citep{gutenkunst2021} or gradient-based optimization \citep{terhorst2025phlash} 
 ---no general-purpose GPU-accelerated library for computing population genetics summary 
 statistics from empirical data has been developed.
 
@@ -293,6 +293,8 @@ open source and freely available at
 
 \section*{Design and Implementation}
 
+% NSP 21-May-26: somewhere in this paragraph should mention the "streaming" design
+% for large data?
 \pggpu is a pure-Python library built on \cupy \citep{cupy2017}, with
 around 50 custom CUDA kernels (\texttt{cupy.RawKernel}) and dense
 linear algebra dispatched to \cublas; it depends only on \cupy,
@@ -326,6 +328,8 @@ Implementation).
 
 \section*{Features}
 
+% NSP 21-May-26: anything relevant from the "streaming" design that is
+% worth mentioning in passing here?
 \pggpu provides a comprehensive catalog of population-genetics
 statistics organized into eleven categories
 (Table~\ref{tab:features}): classic estimators ($\pi$, $\theta_W$,
@@ -338,8 +342,8 @@ $\mu$ components~\citep{alachiotis2018}, the diplotype-frequency
 spectrum, and a \texttt{FrequencySpectrum} interface to the
 Achaz~\citep{achaz2009} weighted-SFS framework for custom $\theta$
 estimators. Almost every statistic is also reachable through
-\texttt{windowed\_analysis}, the fused-kernel entry point for genome
-scans (Design and Implementation). A complete listing of all
+\texttt{windowed\_analysis}, the entry point for genome
+scans using the fused-kernel (Design and Implementation). A complete listing of all
 implemented statistics with primary references, together with an
 extended description of the API and resampling utilities, is provided
 in the Supplementary Material (Table~\ref{tab:full_catalog}).
@@ -392,7 +396,7 @@ result is supported by both empirical and simulation evidence.
 
 \subsection*{Accuracy, performance, and scaling}
 
-We first verified that \pggpu reproduces established CPU
+We first verified that \pggpu reproduces results from established CPU
 implementations: every statistic with a counterpart in \scikitallel,
 \plinktwo, or \moments matches the reference to within floating-point
 error, with per-statistic comparisons reported in the Supplementary
@@ -431,8 +435,8 @@ existing optimized implementation limits the achievable gain
 \label{fig:speedups}
 \end{figure}
 
-Multi-population LD parsing for demographic inference is a separate
-bottleneck \citep{ragsdale2019}. On a four-population coalescent
+A separate bottleneck is the tallying of multi-population two-locus haplotypes into LD statistics 
+used for demographic inference \citep{ragsdale2019}. On a four-population coalescent
 simulation (105 LD statistics, 10 recombination-distance bins, 10
 replicates of 1\,Mb) \pggpu agrees with \moments-LD to a maximum
 relative error of $1.8\times 10^{-11}$ while cutting per-replicate
@@ -449,6 +453,7 @@ haplotypes at a fixed 100{,}000 variants) and variant count ($\sim
 realistic LD; Supplementary Figure~\ref{fig:scaling}). Per-site
 statistics scale linearly on both axes and finish in well under a
 second across the tested range; two-locus statistics show the expected
+% NSP 21-May-26: why is Garud's H mentioned here as a two-locus statistic?
 $O(n^2)$ growth with sample size for Garud's $H$ and a sub-quadratic
 profile for $Z_{nS}$ (a sampled-pairs estimator). At the largest
 configuration tested (100{,}000 haplotypes $\times$ 100{,}000 variants)
@@ -460,8 +465,8 @@ We illustrate two end-to-end uses of \pggpu on data and methodology
 where the GPU implementation enables an analysis that is slow or
 intractable on CPU. A third use---supplying \pggpu-computed LD
 statistics to the \moments demographic-inference workflow as a
-single-import drop-in replacement, with parameter estimates
-indistinguishable from the native parser---is described in the
+single-import drop-in replacement, with downstream parameter estimates
+indistinguishable from an analysis using the native parser---is described in the
 Supplementary Material (Supplementary Figure~\ref{fig:moments_inference}).
 
 \paragraph{Benchmarking a whole-arm Ag1000G genome scan.}
@@ -479,8 +484,8 @@ to seconds while recovering the expected genome-wide
 signatures: $\pi$ heterogeneity, negative Tajima's $D$ consistent
 with non-equilibrium demography and selection, and elevated Hudson $F_{ST}$ between subspecies.
 Every per-window panel comes from a single call to \pggpu's \texttt{windowed\_analysis}
-function, which will calculate multiple statistics (e.g., this plot) to the loaded haplotype matrix
-in a single forward pass.
+function, which will calculate multiple statistics (e.g., this plot) 
+from the loaded haplotype matrix in a single forward pass.
 
 \begin{figure}[ht]
 \centering
@@ -539,6 +544,8 @@ pairwise-relatedness functions used on genotype matrices that can fit in memory 
 without change on the chunked input. We demonstrate this on
 chromosome 15 of \texttt{stdpopsim}'s \texttt{OutOfAfrica\_2T12}
 model simulated at 50{,}000 diploid individuals per population
+% NSP 21-May-26: wow! is the 2.3 TB a compressed or flat text VCF? If the former,
+% we should clarify
 (200{,}000 haplotypes, 11.6 million variants, $\sim 2.3$ TB on disk as a VCF).
 The full scan shown in Supplementary
 Figure~\ref{fig:biobank_scan}---windowed diversity and divergence
@@ -560,6 +567,7 @@ but none brings the full catalog of routine summary
 statistics onto modern GPU hardware. 
 By unifying eleven categories of
 statistics under a single Python API on top of \cupy, \pggpu turns
+% NSP 21-May-26: does "batch" mean chunked-and-CPU-parallelized here? Or would "serial" be a better word
 analyses that were previously hours-long batch jobs (e.g. full chromosome arm scans using
 \scikitallel) or computationally infeasible
 (chromosome-scale LD calculation using all SNP pairs) into runs of seconds to minutes on a single GPU.
@@ -578,7 +586,9 @@ Second, memory-aware chunking that
 routes large workloads through a
 chunked variant of the same kernels which is 
 essential to handle large-scale data without user
-tuning. Third, processing windows in tiles---so that working memory
+tuning. 
+% NSP 21-May-26: ^^^ this seems like a good place to mention any insights from the new "streaming" structure?
+Third, processing windows in tiles---so that working memory
 scales with the tile size ($O(\text{tile\_size}\times n_{\text{hap}}^2)$)
 rather than with the number of windows ($O(n_{\text{windows}}\times n_{\text{hap}}^2)$)---lets
 the same code path scale from a single chromosome to a whole genome.
@@ -776,7 +786,7 @@ implemented for all single-population diversity estimators.}
 \begin{figure}[ht]
 \centering
 \includegraphics[width=0.85\textwidth]{moments_ld_validation.pdf}
-\caption{\pggpu LD parsing accuracy and speed against
+\caption{\pggpu The accuracy and speed of parsing LD statistics, against
 \moments. Left: raw two-locus LD-statistic sums ($D^2$, $Dz$,
 $\pi_2$, $H$) for a four-population split simulation (10 replicates;
 105 statistics). Right: per-replicate parsing time on
@@ -809,7 +819,7 @@ sequence.}
 and \moments on identical replicate simulations. The two
 parsers produce numerically identical outputs across all 9 LD
 statistics shown, confirming \pggpu can serve as a transparent
-drop-in replacement for the \texttt{moments.LD} parsing module.}
+drop-in replacement for the native \texttt{moments.LD} parsing module.}
 \label{fig:moments_ld_decay}
 \end{figure}
 
@@ -914,6 +924,8 @@ works whether the caller has a tree sequence \citep{jeffery2026}
 supporting both \biotzarr/\vcz \citep{czech2024vcz} and \scikitallel
 \citep{miles2024} layouts), or an in-memory \numpy array
 \citep{harris2020}.
+
+% NSP 21-May-26: seems like we need some details here regarding the "streaming" variants?
 
 \subsubsection*{Fused kernels}
 
